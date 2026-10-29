@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "frosty-scene-26cb",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-29",
+  "kv_namespaces": [
+    {
+      "binding": "PRODUCTS",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ]
+}
