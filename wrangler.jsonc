@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "frosty-scene-26cb",
-  "main": "src/index.js",
+"main": "chehreh-ara-admin-worker.js",
   "compatibility_date": "2026-10-29",
   "kv_namespaces": [
     {
