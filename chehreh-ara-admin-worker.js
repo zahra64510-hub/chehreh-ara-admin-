@@ -227,7 +227,9 @@ async fetch(request,env){
 
   if(p==='/api/login'&&request.method==='POST'){
     if(!env.ADMIN_PASSWORD||!env.SESSION_SECRET||!env.PRODUCTS)
-      return json({error:'Server settings are incomplete: check ADMIN_PASSWORD, SESSION_SECRET and PRODUCTS.'},500);
+      return json({
+        error:'Settings check: ADMIN_PASSWORD='+Boolean(env.ADMIN_PASSWORD)+', SESSION_SECRET='+Boolean(env.SESSION_SECRET)+', PRODUCTS='+Boolean(env.PRODUCTS)
+      },500);
 
     let b={};
     try{b=await request.json()}catch{}
