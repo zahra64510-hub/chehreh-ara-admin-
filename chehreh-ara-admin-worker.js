@@ -378,7 +378,7 @@ async function load(){
   try{
     cache=(await api('/api/products')).products||[];
     $('list').innerHTML=cache.length
-      ?cache.map(p=>'<div class="item"><b>'+esc(p.name)+'</b><div>'+esc(p.price||'قیمت ثبت نشده')+' · '+esc(p.category||'بدون دسته‌بندی')+'</div><div class="muted">'+esc(p.description)+'</div><button class="secondary" onclick="edit('+JSON.stringify(p.id)+')">ویرایش</button><button class="del" onclick="del('+JSON.stringify(p.id)+')">حذف</button></div>').join('')
+      ?cache.map(p=>'<div class="item"><b>'+esc(p.name)+'</b><div>'+esc(p.price||'قیمت ثبت نشده')+' · '+esc(p.category||'بدون دسته‌بندی')+'</div><div class="muted">'+esc(p.description)+'</div><button class="secondary" data-id="'+esc(p.id)+'" onclick="edit(this.dataset.id)">ویرایش</button><button class="del" data-id="'+esc(p.id)+'" onclick="del(this.dataset.id)">حذف</button></div>').join('')
       :'هنوز محصولی ثبت نشده است.';
   }catch(e){
     $('msg').textContent=e.message;
@@ -386,7 +386,7 @@ async function load(){
 }
 
 function edit(id){
-  let p=cache.find(x=>x.id===id);
+  let p=cache.find(x=>String(x.id)===String(id));
   if(!p)return;
 
   ['id','name','price','category','image','description'].forEach(k=>$(k).value=p[k]||'');
@@ -397,6 +397,8 @@ function edit(id){
   setPreview(p.image||'');
 
   $('title').textContent='ویرایش محصول';
+  $('msg').textContent='اطلاعات محصول برای ویرایش آماده است.';
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function resetForm(){
@@ -413,6 +415,7 @@ function resetForm(){
 
   setPreview('');
   $('title').textContent='افزودن محصول';
+  $('msg').textContent='';
 }
 
 async function save(){
@@ -439,7 +442,7 @@ async function save(){
     await api('/api/products',{method:'POST',body:JSON.stringify(p)});
     $('msg').textContent='محصول ذخیره شد.';
     resetForm();
-    load();
+    await load();
   }catch(e){
     $('msg').textContent=e.message;
   }
@@ -449,7 +452,8 @@ async function del(id){
   if(!confirm('محصول حذف شود؟'))return;
   try{
     await api('/api/products/'+encodeURIComponent(id),{method:'DELETE'});
-    load();
+    $('msg').textContent='محصول حذف شد.';
+    await load();
   }catch(e){
     $('msg').textContent=e.message;
   }
