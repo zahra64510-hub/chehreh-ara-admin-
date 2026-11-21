@@ -1,6 +1,12 @@
 
 const KEY = "products", COOKIE = "chehreh_session";
 
+const GH_OWNER = "zahra64510-hub";
+const GH_REPO = "chehreh-ara-admin-";
+const GH_BRANCH = "main";
+const IMAGE_FOLDER = "product-images";
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
+
 const json = (data, status=200, headers={}) => new Response(JSON.stringify(data), {
   status,
   headers: {"content-type":"application/json; charset=utf-8", ...headers}
@@ -44,6 +50,142 @@ async function products(env) {
   return await env.PRODUCTS.get(KEY,"json") || [];
 }
 
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for(let i=0; i<bytes.length; i+=chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i,i+chunk));
+  }
+  return btoa(binary);
+}
+
+function githubHeaders(env, accept="application/vnd.github+json") {
+  return {
+    "Authorization":"Bearer "+env.GH_TOKEN,
+    "Accept":accept,
+    "X-GitHub-Api-Version":"2022-11-28",
+    "User-Agent":"ChehrehAra-Store"
+  };
+}
+
+async function uploadImage(request,env) {
+  if(!env.GH_TOKEN)
+    return json({error:"تنظیمات آپلود عکس کامل نیست. GH_TOKEN را بررسی کن."},500);
+
+  let form;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({error:"فایل عکس دریافت نشد."},400);
+  }
+
+  const file = form.get("file");
+
+  if(!file || typeof file.arrayBuffer !== "function")
+    return json({error:"لطفاً یک عکس انتخاب کن."},400);
+
+  const types = {
+    "image/jpeg":"jpg",
+    "image/png":"png",
+    "image/webp":"webp",
+    "image/gif":"gif"
+  };
+
+  const ext = types[file.type];
+
+  if(!ext)
+    return json({error:"فرمت مجاز: JPG، PNG، WEBP یا GIF."},400);
+
+  if(file.size > MAX_IMAGE_SIZE)
+    return json({error:"حجم عکس نباید بیشتر از ۴ مگابایت باشد."},400);
+
+  if(file.size === 0)
+    return json({error:"فایل عکس خالی است."},400);
+
+  const filename = crypto.randomUUID()+"."+ext;
+  const path = IMAGE_FOLDER+"/"+filename;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const apiUrl = "https://api.github.com/repos/"
+    +GH_OWNER+"/"+GH_REPO+"/contents/"+path;
+
+  let response;
+
+  try {
+    response = await fetch(apiUrl,{
+      method:"PUT",
+      headers:{
+        ...githubHeaders(env),
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        message:"Upload product image",
+        branch:GH_BRANCH,
+        content:bytesToBase64(bytes)
+      })
+    });
+  } catch {
+    return json({error:"ارتباط با گیت‌هاب برقرار نشد."},502);
+  }
+
+  if(!response.ok) {
+    let detail={};
+    try { detail=await response.json(); } catch {}
+
+    return json({
+      error:"آپلود عکس انجام نشد. وضعیت گیت‌هاب: "+response.status,
+      detail:detail.message||"لطفاً تنظیمات توکن و دسترسی مخزن را بررسی کن."
+    },502);
+  }
+
+  return json({
+    ok:true,
+    filename,
+    image:new URL("/images/"+filename,request.url).toString()
+  });
+}
+
+async function serveImage(filename,env) {
+  if(!/^[a-f0-9-]+\.(jpg|png|webp|gif)$/.test(filename))
+    return new Response("Not found",{status:404});
+
+  if(!env.GH_TOKEN)
+    return new Response("Image service unavailable",{status:503});
+
+  const path = IMAGE_FOLDER+"/"+filename;
+  const apiUrl = "https://api.github.com/repos/"
+    +GH_OWNER+"/"+GH_REPO+"/contents/"+path;
+
+  let response;
+
+  try {
+    response = await fetch(apiUrl,{
+      headers:githubHeaders(env,"application/vnd.github.raw+json")
+    });
+  } catch {
+    return new Response("Image service unavailable",{status:502});
+  }
+
+  if(!response.ok)
+    return new Response("Image not found",{status:404});
+
+  const mime = {
+    jpg:"image/jpeg",
+    png:"image/png",
+    webp:"image/webp",
+    gif:"image/gif"
+  }[filename.split(".").pop()];
+
+  return new Response(response.body,{
+    status:200,
+    headers:{
+      "Content-Type":mime,
+      "Cache-Control":"public, max-age=3600",
+      "X-Content-Type-Options":"nosniff"
+    }
+  });
+}
+
 function page() {
 return `<!doctype html>
 <html lang="fa" dir="rtl">
@@ -66,6 +208,8 @@ button{background:#c65380;color:white;border:0;font-weight:bold}
 .password-row{display:flex;direction:ltr;align-items:stretch;gap:6px}
 .password-row input{direction:ltr;text-align:left;unicode-bidi:plaintext;flex:1;min-width:0}
 .password-row button{flex:0 0 auto}
+.preview{display:block;max-width:220px;max-height:220px;object-fit:contain;margin:10px auto;border-radius:12px;border:1px solid #f0d6df}
+.file-label{display:block;margin-top:12px;font-weight:bold;color:#71334c}
 @media(max-width:520px){.grid{grid-template-columns:1fr}}
 </style>
 
@@ -92,7 +236,19 @@ button{background:#c65380;color:white;border:0;font-weight:bold}
 <input id="price" placeholder="قیمت">
 <input id="category" placeholder="دسته‌بندی">
 </div>
-<input id="image" placeholder="لینک عکس محصول (اختیاری)">
+
+<input id="image" placeholder="لینک عکس محصول (اختیاری)" oninput="showImageUrl()">
+
+<label class="file-label" for="imageFile">📷 انتخاب عکس از گالری گوشی</label>
+<input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="selectImage()">
+
+<img id="imagePreview" class="preview" hidden alt="پیش‌نمایش عکس محصول">
+
+<button type="button" class="secondary" onclick="uploadSelectedImage()">بارگذاری عکس انتخاب‌شده</button>
+<p id="uploadMsg" class="muted"></p>
+
+<p class="muted">حداکثر حجم عکس: ۴ مگابایت. فرمت‌های JPG، PNG، WEBP و GIF مجاز هستند.</p>
+
 <textarea id="description" rows="3" placeholder="توضیحات محصول"></textarea>
 <button onclick="save()">ذخیره محصول</button>
 <button class="secondary" onclick="resetForm()">پاک کردن فرم</button>
@@ -110,6 +266,8 @@ button{background:#c65380;color:white;border:0;font-weight:bold}
 <script>
 const $=x=>document.getElementById(x);
 let cache=[];
+let selectedImage=null;
+let previewObjectUrl=null;
 
 function togglePassword(){
   const p=$('password');
@@ -126,6 +284,79 @@ async function api(path,opt={}){
 
 function esc(s){
   return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setPreview(src){
+  const img=$('imagePreview');
+  if(src){
+    img.src=src;
+    img.hidden=false;
+  }else{
+    img.removeAttribute('src');
+    img.hidden=true;
+  }
+}
+
+function selectImage(){
+  const file=$('imageFile').files[0];
+  selectedImage=file||null;
+
+  if(previewObjectUrl){
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl=null;
+  }
+
+  if(!file){
+    setPreview($('image').value.trim());
+    return;
+  }
+
+  previewObjectUrl=URL.createObjectURL(file);
+  setPreview(previewObjectUrl);
+  $('uploadMsg').textContent='عکس انتخاب شد. برای ذخیره در گیت‌هاب، دکمه بارگذاری را بزن.';
+}
+
+function showImageUrl(){
+  if(!selectedImage)
+    setPreview($('image').value.trim());
+}
+
+async function uploadSelectedImage(){
+  if(!selectedImage){
+    $('uploadMsg').textContent='اول یک عکس از گالری انتخاب کن.';
+    return;
+  }
+
+  const form=new FormData();
+  form.append('file',selectedImage);
+
+  $('uploadMsg').textContent='در حال بارگذاری عکس...';
+
+  try{
+    const r=await fetch('/api/upload',{
+      method:'POST',
+      body:form
+    });
+
+    let d={};
+    try{d=await r.json()}catch{}
+
+    if(!r.ok)throw Error(d.error||'بارگذاری ناموفق بود.');
+
+    $('image').value=d.image;
+    selectedImage=null;
+    $('imageFile').value='';
+
+    if(previewObjectUrl){
+      URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl=null;
+    }
+
+    setPreview(d.image);
+    $('uploadMsg').textContent='عکس با موفقیت بارگذاری شد. حالا محصول را ذخیره کن.';
+  }catch(e){
+    $('uploadMsg').textContent=e.message;
+  }
 }
 
 async function login(){
@@ -157,12 +388,30 @@ async function load(){
 function edit(id){
   let p=cache.find(x=>x.id===id);
   if(!p)return;
+
   ['id','name','price','category','image','description'].forEach(k=>$(k).value=p[k]||'');
+
+  selectedImage=null;
+  $('imageFile').value='';
+  $('uploadMsg').textContent='';
+  setPreview(p.image||'');
+
   $('title').textContent='ویرایش محصول';
 }
 
 function resetForm(){
   ['id','name','price','category','image','description'].forEach(k=>$(k).value='');
+
+  selectedImage=null;
+  $('imageFile').value='';
+  $('uploadMsg').textContent='';
+
+  if(previewObjectUrl){
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl=null;
+  }
+
+  setPreview('');
   $('title').textContent='افزودن محصول';
 }
 
@@ -175,10 +424,17 @@ async function save(){
     image:$('image').value.trim(),
     description:$('description').value.trim()
   };
+
   if(!p.name){
     $('msg').textContent='نام محصول را وارد کن.';
     return;
   }
+
+  if(selectedImage){
+    $('msg').textContent='اول عکس انتخاب‌شده را بارگذاری کن.';
+    return;
+  }
+
   try{
     await api('/api/products',{method:'POST',body:JSON.stringify(p)});
     $('msg').textContent='محصول ذخیره شد.';
@@ -222,6 +478,10 @@ async fetch(request,env){
   if(p==='/admin')
     return new Response(page(),{headers:{'content-type':'text/html; charset=utf-8'}});
 
+  if(p.startsWith('/images/')&&request.method==='GET'){
+    return serveImage(p.slice('/images/'.length),env);
+  }
+
   if(p==='/api/public-products'&&request.method==='GET')
     return json({products:await products(env)},200,cors);
 
@@ -242,6 +502,16 @@ async fetch(request,env){
 
   if(p==='/api/logout'&&request.method==='POST')
     return json({ok:true},200,clearCookie);
+
+  if(p==='/api/upload'&&request.method==='POST'){
+    if(!env.SESSION_SECRET||!env.PRODUCTS)
+      return json({error:'Server settings are incomplete.'},500);
+
+    if(!await authorized(request,env.SESSION_SECRET))
+      return json({error:'Please log in first.'},401);
+
+    return uploadImage(request,env);
+  }
 
   if(p.startsWith('/api/products')){
     if(!env.PRODUCTS||!env.SESSION_SECRET)
