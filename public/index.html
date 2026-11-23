@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>چهره آرا | زیبایی تو، تخصص ما</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#fff9f7;color:#493b3b}
+header{background:linear-gradient(135deg,#f6c6d0,#f8dfd0);padding:30px 16px;text-align:center}
+header h1{margin:0 0 10px;font-size:27px;color:#783f52}
+header p{margin:0;color:#704d55}
+nav{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:16px}
+button{border:0;border-radius:22px;padding:10px 17px;background:#f2d4d9;color:#713f50;font-size:14px;cursor:pointer}
+button.active,button:hover{background:#a85d76;color:white}
+main{max-width:1050px;margin:auto;padding:10px 15px 35px}
+.intro{text-align:center;padding:18px 5px}
+.search{display:block;width:100%;max-width:500px;margin:15px auto;padding:13px;border:1px solid #e7c8cf;border-radius:25px;font-size:15px;outline:none}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:17px}
+.card{background:white;border:1px solid #f0e1e2;border-radius:17px;overflow:hidden;box-shadow:0 4px 14px #8d586010}
+.card img{width:100%;height:190px;object-fit:contain;background:#fff8f8}
+.placeholder{height:190px;display:grid;place-items:center;background:#fff0f1;font-size:48px}
+.info{padding:14px}
+.info h3{margin:0 0 9px;font-size:16px;color:#754456}
+.price{font-weight:bold;color:#a34e6b;margin:10px 0}
+.desc{font-size:13px;line-height:1.9;color:#76676a;min-height:40px}
+.order{display:block;text-align:center;text-decoration:none;background:#a85d76;color:white;padding:11px;border-radius:22px;margin-top:12px}
+.message{text-align:center;padding:35px 10px;color:#886c74;line-height:2}
+footer{text-align:center;background:#f8e5e3;padding:25px 12px;line-height:2;color:#704b55}
+footer a{color:#914c68;text-decoration:none}
+.admin{font-size:12px;color:#987d83}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🌸 چهره آرا 🌸</h1>
+<p>زیبایی تو، تخصص ما</p>
+<p>محصولات آرایشی و بهداشتی با ضمانت اصالت کالا</p>
+</header>
+
+<main>
+<section class="intro">
+<h2>فروشگاه محصولات زیبایی</h2>
+<p>محصول مورد نظرت رو پیدا کن و برای ثبت سفارش به روبیکا بیا 💗</p>
+<input class="search" id="search" type="search" placeholder="جست‌وجوی نام محصول...">
+</section>
+
+<nav id="categories">
+<button class="active" data-cat="all">همه محصولات</button>
+<button data-cat="skin">مراقبت پوست</button>
+<button data-cat="hair">مراقبت مو</button>
+<button data-cat="makeup">آرایشی</button>
+</nav>
+
+<div id="count" class="intro">در حال دریافت محصولات...</div>
+<section class="products" id="products"></section>
+</main>
+
+<footer>
+<strong>چهره آرا</strong>
+<p>مشاوره رایگان برای انتخاب محصول مناسب پوست و موی شما</p>
+<p>برای ثبت سفارش به کانال ما در روبیکا مراجعه نمایید</p>
+<a href="https://rubika.ir/chehreh_ara83/BJEEFJBCGCJADIEC" target="_blank">ورود به کانال روبیکا</a>
+<br><br>
+<a class="admin" href="/admin">ورود مدیریت</a>
+</footer>
+
+<script>
+const RUBIKA_LINK="https://rubika.ir/chehreh_ara83/BJEEFJBCGCJADIEC";
+let allProducts=[];
+let selectedCategory="all";
+
+const productsBox=document.getElementById("products");
+const countBox=document.getElementById("count");
+const searchBox=document.getElementById("search");
+
+function categoryType(value){
+ const v=String(value||"").toLowerCase();
+ if(v.includes("پوست")||v.includes("skin")) return "skin";
+ if(v.includes("مو")||v.includes("hair")) return "hair";
+ if(v.includes("آرای")||v.includes("makeup")) return "makeup";
+ return "other";
+}
+
+function render(){
+ const term=searchBox.value.trim().toLowerCase();
+ const filtered=allProducts.filter(p=>{
+  const cat=categoryType(p.category);
+  const matchesCategory=selectedCategory==="all"||cat===selectedCategory;
+  const text=[p.name,p.description,p.category,p.price].join(" ").toLowerCase();
+  return matchesCategory&&text.includes(term);
+ });
+
+ countBox.textContent=filtered.length+" محصول";
+ productsBox.innerHTML="";
+
+ if(!filtered.length){
+  productsBox.innerHTML='<div class="message">محصولی با این مشخصات پیدا نشد 🌷</div>';
+  return;
+ }
+
+ filtered.forEach(p=>{
+  const card=document.createElement("article");
+  card.className="card";
+
+  const image=document.createElement("img");
+  image.alt=p.name||"محصول چهره آرا";
+  image.loading="lazy";
+  if(p.image){
+   image.src=p.image;
+   image.onerror=()=>{image.replaceWith(makePlaceholder())};
+  }else{
+   image.replaceWith(makePlaceholder());
+  }
+
+  const info=document.createElement("div");
+  info.className="info";
+
+  const name=document.createElement("h3");
+  name.textContent=p.name||"محصول چهره آرا";
+
+  const price=document.createElement("div");
+  price.className="price";
+  price.textContent=p.price?String(p.price)+" تومان":"برای اطلاع از قیمت پیام دهید";
+
+  const desc=document.createElement("p");
+  desc.className="desc";
+  desc.textContent=p.description||"برای دریافت اطلاعات بیشتر پیام دهید.";
+
+  const order=document.createElement("a");
+  order.className="order";
+  order.href=RUBIKA_LINK;
+  order.target="_blank";
+  order.rel="noopener";
+  order.textContent="ثبت سفارش در روبیکا";
+
+  info.append(name,price,desc,order);
+  card.append(image,info);
+  productsBox.append(card);
+ });
+}
+
+function makePlaceholder(){
+ const box=document.createElement("div");
+ box.className="placeholder";
+ box.textContent="🌸";
+ return box;
+}
+
+document.querySelectorAll("#categories button").forEach(btn=>{
+ btn.addEventListener("click",()=>{
+  document.querySelectorAll("#categories button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  selectedCategory=btn.dataset.cat;
+  render();
+ });
+});
+
+searchBox.addEventListener("input",render);
+
+async function loadProducts(){
+ try{
+  const response=await fetch("/api/public-products");
+  if(!response.ok) throw new Error("خطا در دریافت محصولات");
+  const data=await response.json();
+  allProducts=Array.isArray(data)?data:(data.products||[]);
+  render();
+ }catch(error){
+  countBox.textContent="دریافت محصولات با مشکل روبه‌رو شد.";
+  productsBox.innerHTML='<div class="message">لطفاً کمی بعد دوباره امتحان کن.</div>';
+ }
+}
+
+loadProducts();
+</script>
+</body>
+  </html>
